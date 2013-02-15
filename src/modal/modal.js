@@ -18,7 +18,7 @@ angular.module('ui.bootstrap.modal', ['ui.bootstrap.dialog'])
       });
       var dialog = $dialog.dialog(opts);
 
-      elm.css({'display':'none'});
+      elm.remove();
 
       if (attrs.close) {
         setClosed = function() {
