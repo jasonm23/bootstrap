@@ -29,7 +29,6 @@ dialogModule.provider("$dialog", function(){
     /* other options: template, templateUrl, controller */
 	};
 
-
 	var globalOptions = {};
 
   var activeBackdrops = {value : 0};
@@ -47,6 +46,7 @@ dialogModule.provider("$dialog", function(){
   // Returns the actual `$dialog` service that is injected in controllers
 	this.$get = ["$http", "$document", "$compile", "$rootScope", "$controller", "$templateCache", "$q", "$transition", "$injector",
   function ($http, $document, $compile, $rootScope, $controller, $templateCache, $q, $transition, $injector) {
+
 		var body = $document.find('body');
 
 		function createElement(clazz) {
@@ -73,17 +73,11 @@ dialogModule.provider("$dialog", function(){
         this.backdropEl.removeClass(options.triggerClass);
       }
 
-      if (options.precompiled && options.template) {
-        this.modalEl = options.template;
-        this.modalEl.addClass(options.modalClass);
-      } else {
-        this.modalEl = createElement(options.modalClass);      
-      }
-
+      this.modalEl = createElement(options.modalClass);
       if(options.modalFade){
         this.modalEl.addClass(options.transitionClass);
         this.modalEl.removeClass(options.triggerClass);
-      } 
+      }
 
       this.handledEscapeKey = function(e) {
         if (e.which === 27) {
@@ -122,18 +116,16 @@ dialogModule.provider("$dialog", function(){
       }
 
       this._loadResolves().then(function(locals) {
-        var $scope = locals.$scope = self.$scope = $rootScope.$new();
+        var $scope = locals.$scope = self.$scope = locals.$scope ? locals.$scope : $rootScope.$new();
 
-        if (!self.options.precompiled) {
-          self.modalEl.html(locals.$template);
+        self.modalEl.html(locals.$template);
 
-          if (self.options.controller) {
-            var ctrl = $controller(self.options.controller, locals);
-            self.modalEl.contents().data('ngControllerController', ctrl);
-          }
-
-          $compile(self.modalEl)($scope);
+        if (self.options.controller) {
+          var ctrl = $controller(self.options.controller, locals);
+          self.modalEl.contents().data('ngControllerController', ctrl);
         }
+
+        $compile(self.modalEl)($scope);
         self._addElementsToDom();
         body.addClass(self.options.modalOpenClass);
 
@@ -165,15 +157,12 @@ dialogModule.provider("$dialog", function(){
 
       this._onCloseComplete(result);
 
-      function removeTriggerClass(el){       
+      function removeTriggerClass(el){
         el.removeClass(self.options.triggerClass);
       }
 
-      function onCloseComplete(el){
-        //Due to the fact that modalEl may be present in DOM, and not removed when used in directive
-        // Transition services keeps firing promise resolves and thus breaks further animations of the modal
-        // Make sure that unbinding is done just once
-        if (fadingElements.length === 1 || el === self.modalEl) {
+      function onCloseComplete(){
+        if(self._open){
           self._onCloseComplete(result);
         }
       }
@@ -209,11 +198,7 @@ dialogModule.provider("$dialog", function(){
     };
 
     Dialog.prototype._addElementsToDom = function(){
-      if (!this.options.precompiled) {
-        body.append(this.modalEl);
-      } else {
-        this.modalEl.css({'display': 'block'});
-      }
+      body.append(this.modalEl);
 
       if(this.options.backdrop) { 
         if (activeBackdrops.value === 0) {
@@ -226,11 +211,8 @@ dialogModule.provider("$dialog", function(){
     };
 
     Dialog.prototype._removeElementsFromDom = function(){
-      if (!this.options.precompiled) {
-        this.modalEl.remove();
-      } else {
-        this.modalEl.css({'display': 'none'});
-      }
+      this.modalEl.remove();
+
       if(this.options.backdrop) { 
         activeBackdrops.value--;
         if (activeBackdrops.value === 0) {
@@ -297,58 +279,4 @@ dialogModule.provider("$dialog", function(){
       }
     };
   }];
-})
-.directive('modal', ['$parse', '$dialog', function($parse, $dialog) {
-  var backdropEl;
-  var body = angular.element(document.getElementsByTagName('body')[0]);
-  return {
-    restrict: 'EA',
-    link: function(scope, elm, attrs) {
-      var opts = angular.extend({}, scope.$eval(attrs.uiOptions || attrs.bsOptions || attrs.options));
-      var shownExpr = attrs.modal || attrs.show;
-      var setClosed;
-      var selfCall = false;
-      // Create a basic dialog with the template as the contents of the directive
-      // Add the current scope as the resolve in order to make the directive scope as a dialog controller scope
-      opts = angular.extend(opts, 
-      {
-        template: elm, 
-        precompiled: true
-      });
-      var dialog = $dialog.dialog(opts);
-
-      elm.css({'display':'none'});
-
-      if (attrs.close) {
-        setClosed = function() {
-          $parse(attrs.close)(scope);
-        };
-      } else {
-        setClosed = function() {         
-          if (angular.isFunction($parse(shownExpr).assign)) {
-            $parse(shownExpr).assign(scope, false); 
-          }
-        };
-      }
-      
-      function setShown(shown) {
-        scope.$apply(function() {
-          model.assign(scope, shown);
-        });
-      }
-
-      scope.$watch(shownExpr, function(isShown, oldShown) {
-        if (isShown) {
-          dialog.open().then(function(){
-            setClosed();
-          });
-        } else {
-          //Make sure it is not opened
-          if (dialog.isOpen()){
-            dialog.close();
-          }
-        }
-      });
-    }
-  };
-}]);
+});
